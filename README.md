@@ -1,1 +1,1 @@
-# spamFiltet
+# spamFilter
