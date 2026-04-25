@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpamGuard FSA – Spam Filter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a25;
+    --border: #2a2a3a;
+    --accent: #ff3c5f;
+    --accent2: #00e5ff;
+    --accent3: #a259ff;
+    --safe: #00e676;
+    --warn: #ffab00;
+    --danger: #ff3c5f;
+    --text: #e8e8f0;
+    --muted: #5a5a75;
+    --font-mono: 'Space Mono', monospace;
+    --font-display: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+
+  /* Header */
+  header { text-align: center; margin-bottom: 48px; }
+  .logo-badge {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, #ff3c5f22, #a259ff22);
+    border: 1px solid #ff3c5f44;
+    border-radius: 4px; padding: 6px 16px; margin-bottom: 20px;
+    font-size: 11px; letter-spacing: 3px; color: var(--accent);
+    text-transform: uppercase;
+  }
+  .logo-badge::before { content: '◈'; font-size: 14px; }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(32px, 5vw, 60px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -1px;
+  }
+  h1 span.highlight { color: var(--accent); }
+  h1 span.highlight2 { color: var(--accent2); }
+  .subtitle { color: var(--muted); font-size: 12px; letter-spacing: 2px; margin-top: 12px; }
+
+  /* Main layout */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent3), var(--accent2));
+  }
+  .card-title {
+    font-family: var(--font-display);
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--accent2); margin-bottom: 16px;
+  }
+
+  /* Textarea */
+  textarea {
+    width: 100%; height: 160px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px; padding: 14px;
+    resize: vertical; outline: none;
+    transition: border-color 0.2s;
+    line-height: 1.6;
+  }
+  textarea:focus { border-color: var(--accent2); }
+  textarea::placeholder { color: var(--muted); }
+
+  /* Buttons */
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  button {
+    font-family: var(--font-mono); cursor: pointer;
+    border: none; border-radius: 4px;
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 10px 20px; transition: all 0.15s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 20px #ff3c5f44;
+  }
+  .btn-primary:hover { background: #ff6080; box-shadow: 0 0 30px #ff3c5f66; transform: translateY(-1px); }
+  .btn-secondary { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* Sample buttons */
+  .sample-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .sample-btn {
+    font-size: 10px; padding: 6px 12px;
+    background: var(--surface2); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 3px;
+    cursor: pointer; font-family: var(--font-mono);
+    letter-spacing: 0.5px; transition: all 0.15s;
+  }
+  .sample-btn:hover { color: var(--accent2); border-color: var(--accent2); }
+  .sample-label { font-size: 10px; color: var(--muted); letter-spacing: 1px; margin-top: 14px; margin-bottom: 6px; text-transform: uppercase; }
+
+  /* Verdict */
+  .verdict-box {
+    border-radius: 8px; padding: 20px;
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 20px; border: 1px solid;
+    transition: all 0.3s;
+    position: relative; overflow: hidden;
+  }
+  .verdict-box.safe   { background: #00e67611; border-color: #00e67633; }
+  .verdict-box.warn   { background: #ffab0011; border-color: #ffab0033; }
+  .verdict-box.danger { background: #ff3c5f11; border-color: #ff3c5f44; }
+  .verdict-box.idle   { background: var(--surface); border-color: var(--border); }
+
+  .verdict-icon { font-size: 40px; line-height: 1; flex-shrink: 0; }
+  .verdict-label {
+    font-family: var(--font-display); font-size: 11px;
+    font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; opacity: 0.7;
+  }
+  .verdict-text { font-family: var(--font-display); font-size: 22px; font-weight: 800; }
+  .verdict-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .score-bar-wrap { margin-left: auto; text-align: right; flex-shrink: 0; }
+  .score-num { font-size: 40px; font-weight: 700; font-family: var(--font-display); }
+  .score-label { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+
+  /* Score bar */
+  .score-bar {
+    height: 6px; background: var(--surface2);
+    border-radius: 3px; overflow: hidden;
+    margin-top: 8px; width: 120px;
+  }
+  .score-fill { height: 100%; border-radius: 3px; transition: width 0.5s cubic-bezier(.4,0,.2,1); }
+
+  /* FSA States diagram */
+  .fsa-diagram {
+    display: flex; align-items: center; gap: 0;
+    flex-wrap: wrap; justify-content: center;
+    padding: 16px 0; gap: 4px;
+  }
+  .fsa-state {
+    width: 52px; height: 52px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; font-family: var(--font-display);
+    border: 2px solid var(--border);
+    background: var(--surface2);
+    color: var(--muted);
+    transition: all 0.3s;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .fsa-state.active { border-color: var(--accent2); color: var(--accent2); background: #00e5ff11; box-shadow: 0 0 16px #00e5ff44; }
+  .fsa-state.accept { border-color: var(--accent); color: var(--accent); background: #ff3c5f11; box-shadow: 0 0 16px #ff3c5f44; border-width: 3px; }
+  .fsa-state.accept::after {
+    content: ''; position: absolute; inset: 4px;
+    border-radius: 50%; border: 1px solid currentColor; opacity: 0.4;
+  }
+  .fsa-arrow { color: var(--muted); font-size: 18px; flex-shrink: 0; margin: 0 2px; }
+  .fsa-arrow.active { color: var(--accent2); }
+  .fsa-label { font-size: 9px; color: var(--muted); text-align: center; margin-top: 4px; letter-spacing: 0.5px; }
+
+  /* Matched keywords */
+  .match-grid { display: flex; flex-direction: column; gap: 8px; }
+  .match-item {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px;
+    animation: slideIn 0.3s ease;
+  }
+  @keyframes slideIn { from { opacity:0; transform: translateX(-10px); } to { opacity:1; transform: none; } }
+  .match-tag {
+    font-size: 10px; padding: 3px 8px; border-radius: 3px;
+    font-weight: 700; letter-spacing: 1px; text-transform: uppercase; flex-shrink: 0;
+  }
+  .tag-critical { background: #ff3c5f22; color: var(--accent); border: 1px solid #ff3c5f44; }
+  .tag-high     { background: #ffab0022; color: var(--warn);   border: 1px solid #ffab0044; }
+  .tag-medium   { background: #a259ff22; color: var(--accent3); border: 1px solid #a259ff44; }
+  .tag-low      { background: #00e5ff22; color: var(--accent2); border: 1px solid #00e5ff44; }
+
+  .match-keyword { color: var(--text); flex: 1; }
+  .match-found { color: var(--muted); font-size: 11px; font-style: italic; }
+  .match-count { background: var(--surface); border: 1px solid var(--border); border-radius: 3px; padding: 2px 8px; font-size: 11px; color: var(--muted); }
+
+  /* Stats row */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 600px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+  .stat-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 16px; text-align: center;
+  }
+  .stat-num { font-family: var(--font-display); font-size: 28px; font-weight: 800; color: var(--accent2); }
+  .stat-label { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; }
+
+  /* Highlighted text */
+  .highlighted-text {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 16px;
+    font-size: 13px; line-height: 1.8; word-break: break-word;
+    max-height: 140px; overflow-y: auto;
+  }
+  .highlighted-text mark.crit { background: #ff3c5f33; color: #ff8099; border-radius: 3px; padding: 1px 3px; }
+  .highlighted-text mark.high { background: #ffab0033; color: #ffd166; border-radius: 3px; padding: 1px 3px; }
+  .highlighted-text mark.med  { background: #a259ff33; color: #c084fc; border-radius: 3px; padding: 1px 3px; }
+  .highlighted-text mark.low  { background: #00e5ff22; color: #67e8f9; border-radius: 3px; padding: 1px 3px; }
+
+  .empty-state { text-align: center; color: var(--muted); padding: 30px; font-size: 12px; letter-spacing: 1px; }
+
+  /* Regex patterns panel */
+  .pattern-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+  .pattern-item {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 4px; padding: 8px 12px;
+    display: flex; align-items: center; gap: 10px; font-size: 11px;
+  }
+  .pattern-regex { color: var(--accent2); flex: 1; word-break: break-all; font-size: 11px; }
+  .pattern-desc  { color: var(--muted); font-size: 10px; }
+
+  /* FP Panel */
+  .fp-meter { display: flex; flex-direction: column; gap: 10px; }
+  .fp-row { display: flex; align-items: center; gap: 12px; font-size: 11px; }
+  .fp-name { color: var(--text); width: 140px; flex-shrink: 0; }
+  .fp-bar-wrap { flex: 1; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .fp-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+  .fp-pct { width: 36px; text-align: right; color: var(--muted); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface2); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .full-card { grid-column: 1 / -1; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 3px; padding: 3px 8px; font-size: 10px; color: var(--muted);
+  }
+
+  .pattern-complexity { display: flex; gap: 4px; margin-top: 4px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot.on  { background: var(--accent); }
+  .dot.off { background: var(--surface2); border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo-badge">Automata-Based Detection System</div>
+    <h1><span class="highlight">Spam</span><span class="highlight2">Guard</span> FSA</h1>
+    <p class="subtitle">Finite State Automaton + Regex Spam Filter · Keyword · Pattern · FP Analysis</p>
+  </header>
+
+  <!-- Verdict -->
+  <div class="verdict-box idle" id="verdictBox">
+    <div class="verdict-icon" id="verdictIcon">🛡️</div>
+    <div>
+      <div class="verdict-label">Verdict</div>
+      <div class="verdict-text" id="verdictText">Awaiting Input</div>
+      <div class="verdict-sub" id="verdictSub">Enter a message and click Analyze</div>
+    </div>
+    <div class="score-bar-wrap">
+      <div class="score-num" id="scoreNum" style="color:var(--muted)">--</div>
+      <div class="score-label">Spam Score</div>
+      <div class="score-bar"><div class="score-fill" id="scoreFill" style="width:0%;background:var(--muted)"></div></div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-box"><div class="stat-num" id="statMatches">0</div><div class="stat-label">Matches</div></div>
+    <div class="stat-box"><div class="stat-num" id="statPatterns">0</div><div class="stat-label">Patterns Hit</div></div>
+    <div class="stat-box"><div class="stat-num" id="statFSA">—</div><div class="stat-label">FSA State</div></div>
+    <div class="stat-box"><div class="stat-num" id="statFP">Low</div><div class="stat-label">FP Risk</div></div>
+  </div>
+
+  <!-- Input & FSA -->
+  <div class="grid">
+    <div class="card">
+      <div class="card-title">◈ Input Message</div>
+      <textarea id="msgInput" placeholder="Paste or type a message to analyze…&#10;&#10;e.g. Congratulations! You've won a FREE prize. Click here to claim now!"></textarea>
+      <div class="sample-label">Load sample →</div>
+      <div class="sample-row">
+        <button class="sample-btn" onclick="loadSample('spam1')">Prize Scam</button>
+        <button class="sample-btn" onclick="loadSample('spam2')">Pharma Spam</button>
+        <button class="sample-btn" onclick="loadSample('spam3')">Phishing</button>
+        <button class="sample-btn" onclick="loadSample('legit1')">Legit Email</button>
+        <button class="sample-btn" onclick="loadSample('legit2')">FP Edge Case</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" onclick="analyze()">▶ Analyze</button>
+        <button class="btn-secondary" onclick="clearAll()">✕ Clear</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">◈ FSA State Diagram</div>
+      <div class="fsa-diagram" id="fsaDiagram">
+        <div>
+          <div class="fsa-state" id="s0">q0</div>
+          <div class="fsa-label">Start</div>
+        </div>
+        <div class="fsa-arrow" id="a01">→</div>
+        <div>
+          <div class="fsa-state" id="s1">q1</div>
+          <div class="fsa-label">Keyword</div>
+        </div>
+        <div class="fsa-arrow" id="a12">→</div>
+        <div>
+          <div class="fsa-state" id="s2">q2</div>
+          <div class="fsa-label">Pattern</div>
+        </div>
+        <div class="fsa-arrow" id="a23">→</div>
+        <div>
+          <div class="fsa-state" id="s3">q3</div>
+          <div class="fsa-label">Urgency</div>
+        </div>
+        <div class="fsa-arrow" id="a34">→</div>
+        <div>
+          <div class="fsa-state accept" id="s4">q4</div>
+          <div class="fsa-label">SPAM ✗</div>
+        </div>
+      </div>
+      <div style="margin-top:12px; font-size:11px; color:var(--muted); line-height:1.8;">
+        <strong style="color:var(--text)">Transition logic:</strong><br>
+        q0 → q1: Spam keyword detected<br>
+        q1 → q2: URL / monetary pattern matched<br>
+        q2 → q3: Urgency / action phrase found<br>
+        q3 → q4: <span style="color:var(--accent)">Accept (SPAM)</span> · else stays in q2/q3
+      </div>
+    </div>
+  </div>
+
+  <!-- Highlighted Text & Matches -->
+  <div class="grid">
+    <div class="card">
+      <div class="card-title">◈ Highlighted Text</div>
+      <div class="highlighted-text" id="highlightedText">
+        <span style="color:var(--muted);font-size:12px">Analyzed text will appear here with matched patterns highlighted.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">◈ Matched Keywords</div>
+      <div class="match-grid" id="matchGrid">
+        <div class="empty-state">No matches yet</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Patterns & FP -->
+  <div class="grid">
+    <div class="card">
+      <div class="card-title">◈ Regex Pattern Engine</div>
+      <div class="pattern-list" id="patternList"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">◈ False Positive Analysis</div>
+      <div class="fp-meter" id="fpMeter">
+        <div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Analyze a message to see FP risk breakdown</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────
+// FSA + Spam Detection Engine
+// ─────────────────────────────────────────
+
+const KEYWORDS = {
+  critical: {
+    words: ['free money','you have won','claim your prize','winner','lottery','jackpot',
+            'act now','limited time offer','click here','make money fast',
+            'work from home','no credit check','get rich','instant cash'],
+    weight: 40
+  },
+  high: {
+    words: ['free','prize','cash','earn','income','offer','guarantee','100%','risk-free',
+            'exclusive deal','selected','congratulations','verify your account',
+            'account suspended','urgent','alert','immediately'],
+    weight: 20
+  },
+  medium: {
+    words: ['click','buy now','order now','subscribe','unsubscribe','discount',
+            'save big','deal','opportunity','investment','profit','apply now','call now'],
+    weight: 10
+  },
+  low: {
+    words: ['special','new','best','amazing','incredible','fantastic','luxury','cheap'],
+    weight: 5
+  }
+};
+
+const PATTERNS = [
+  { regex: /\b(https?:\/\/|www\.)\S+/gi,          desc: 'URL / Link',            severity: 'high',     weight: 15 },
+  { regex: /\$[\d,]+(\.\d{2})?|\d+\s*dollars?/gi, desc: 'Monetary Amount',        severity: 'high',     weight: 15 },
+  { regex: /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g,      desc: 'Phone Number',           severity: 'medium',   weight: 10 },
+  { regex: /[A-Z]{3,}/g,                           desc: 'ALL CAPS Words',         severity: 'medium',   weight:  8 },
+  { regex: /!{2,}/g,                               desc: 'Multiple Exclamations',  severity: 'low',      weight:  5 },
+  { regex: /\b(reply|respond|respond now|call back|contact us|email us)\b/gi, desc: 'Call to Action', severity: 'medium', weight: 10 },
+  { regex: /\b(password|account|login|verify|confirm|social security|ssn)\b/gi, desc: 'Sensitive Terms', severity: 'critical', weight: 25 },
+  { regex: /\b(v[!i1][a@]gr[a@]|c[!i1][a@]l[!i1][s5]|pharma|prescription)\b/gi, desc: 'Pharma Obfuscation', severity: 'critical', weight: 35 },
+];
+
+// FSA states
+function runFSA(text, keywordMatches, patternMatches) {
+  let state = 'q0';
+  const lower = text.toLowerCase();
+
+  const hasKeyword = keywordMatches.length > 0;
+  const hasURL = patternMatches.some(p => p.desc === 'URL / Link');
+  const hasMonetary = patternMatches.some(p => p.desc === 'Monetary Amount');
+  const hasUrgency = keywordMatches.some(m =>
+    ['urgent','immediately','act now','limited time offer','claim your prize'].some(k => m.keyword.includes(k))
+  );
+  const hasCTA = patternMatches.some(p => p.desc === 'Call to Action') ||
+                 keywordMatches.some(m => ['click here','click','apply now'].some(k => m.keyword.includes(k)));
+
+  if (hasKeyword || patternMatches.some(p => p.severity === 'critical')) {
+    state = 'q1';
+    if (hasURL || hasMonetary || patternMatches.some(p => ['Pharma Obfuscation','Sensitive Terms'].includes(p.desc))) {
+      state = 'q2';
+      if (hasUrgency || hasCTA) {
+        state = 'q3';
+        if (keywordMatches.filter(m => m.severity === 'critical').length > 0 ||
+            patternMatches.filter(p => p.severity === 'critical').length > 0) {
+          state = 'q4';
+        }
+      }
+    }
+  }
+  return state;
+}
+
+function detectKeywords(text) {
+  const lower = text.toLowerCase();
+  const matches = [];
+  for (const [severity, data] of Object.entries(KEYWORDS)) {
+    for (const kw of data.words) {
+      const idx = lower.indexOf(kw);
+      if (idx !== -1) {
+        const count = (lower.match(new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'g')) || []).length;
+        matches.push({ keyword: kw, severity, weight: data.weight, count, found: text.substring(idx, idx + kw.length) });
+      }
+    }
+  }
+  return matches;
+}
+
+function detectPatterns(text) {
+  const matches = [];
+  for (const p of PATTERNS) {
+    const found = text.match(p.regex);
+    if (found) {
+      matches.push({ ...p, matches: [...new Set(found)], count: found.length });
+    }
+  }
+  return matches;
+}
+
+function calcScore(kwMatches, ptMatches) {
+  let score = 0;
+  for (const m of kwMatches) score += m.weight * m.count;
+  for (const p of ptMatches) score += p.weight * p.count;
+  return Math.min(score, 100);
+}
+
+function highlightText(text, kwMatches, ptMatches) {
+  let escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // Build ranges to highlight
+  const ranges = [];
+  for (const m of kwMatches) {
+    const re = new RegExp(m.keyword.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
+    let match;
+    while ((match = re.exec(text)) !== null) {
+      ranges.push({ start: match.index, end: match.index + match[0].length, cls: m.severity === 'critical' ? 'crit' : m.severity === 'high' ? 'high' : m.severity === 'medium' ? 'med' : 'low' });
+    }
+  }
+  for (const p of ptMatches) {
+    const re = new RegExp(p.regex.source, p.regex.flags.includes('g') ? p.regex.flags : p.regex.flags + 'g');
+    let match;
+    while ((match = re.exec(text)) !== null) {
+      ranges.push({ start: match.index, end: match.index + match[0].length, cls: p.severity === 'critical' ? 'crit' : p.severity === 'high' ? 'high' : p.severity === 'medium' ? 'med' : 'low' });
+    }
+  }
+
+  // Sort and merge overlapping ranges
+  ranges.sort((a, b) => a.start - b.start);
+  const merged = [];
+  for (const r of ranges) {
+    if (merged.length && r.start < merged[merged.length-1].end) {
+      merged[merged.length-1].end = Math.max(merged[merged.length-1].end, r.end);
+    } else {
+      merged.push({ ...r });
+    }
+  }
+
+  // Build highlighted HTML
+  let result = '';
+  let last = 0;
+  for (const r of merged) {
+    result += text.slice(last, r.start).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    result += `<mark class="${r.cls}">${text.slice(r.start, r.end).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</mark>`;
+    last = r.end;
+  }
+  result += text.slice(last).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return result || '<span style="color:var(--muted)">No text.</span>';
+}
+
+function fpAnalysis(text, score, kwMatches, ptMatches) {
+  // False positive indicators
+  const items = [
+    {
+      name: 'Keyword Specificity',
+      risk: kwMatches.filter(m => m.severity === 'low').length /
+            Math.max(kwMatches.length, 1),
+      desc: 'Low-weight keywords inflating score'
+    },
+    {
+      name: 'Context Ambiguity',
+      risk: (() => {
+        const legitContexts = ['unsubscribe','if you did not request','to opt out','support team','your account'];
+        return legitContexts.filter(c => text.toLowerCase().includes(c)).length / legitContexts.length;
+      })(),
+      desc: 'Legitimate phrases present'
+    },
+    {
+      name: 'CAPS Pattern',
+      risk: (() => {
+        const capsWords = text.match(/\b[A-Z]{3,}\b/g) || [];
+        return Math.min(capsWords.length / 5, 1);
+      })(),
+      desc: 'Aggressive capitalization'
+    },
+    {
+      name: 'Link Density',
+      risk: (() => {
+        const urls = text.match(/https?:\/\/\S+/g) || [];
+        return Math.min(urls.length / 3, 1);
+      })(),
+      desc: 'Multiple URLs detected'
+    },
+  ];
+  return items;
+}
+
+// ─── Render ───────────────────────────────
+
+function analyze() {
+  const text = document.getElementById('msgInput').value.trim();
+  if (!text) return;
+
+  const kwMatches = detectKeywords(text);
+  const ptMatches = detectPatterns(text);
+  const score = calcScore(kwMatches, ptMatches);
+  const fsaState = runFSA(text, kwMatches, ptMatches);
+
+  // Verdict
+  let level, icon, label, sub, scoreColor;
+  if (score >= 60 || fsaState === 'q4') {
+    level='danger'; icon='🚨'; label='SPAM DETECTED'; scoreColor='var(--danger)';
+    sub = `FSA reached accept state ${fsaState} · ${kwMatches.length + ptMatches.length} signals found`;
+  } else if (score >= 25 || fsaState === 'q3') {
+    level='warn'; icon='⚠️'; label='SUSPICIOUS'; scoreColor='var(--warn)';
+    sub = `FSA state: ${fsaState} · Moderate risk — manual review suggested`;
+  } else {
+    level='safe'; icon='✅'; label='LIKELY CLEAN'; scoreColor='var(--safe)';
+    sub = `FSA state: ${fsaState} · Low spam signals detected`;
+  }
+
+  const vb = document.getElementById('verdictBox');
+  vb.className = 'verdict-box ' + level;
+  document.getElementById('verdictIcon').textContent = icon;
+  document.getElementById('verdictText').textContent = label;
+  document.getElementById('verdictSub').textContent = sub;
+  document.getElementById('scoreNum').textContent = score;
+  document.getElementById('scoreNum').style.color = scoreColor;
+  const fill = document.getElementById('scoreFill');
+  fill.style.width = score + '%';
+  fill.style.background = scoreColor;
+
+  // Stats
+  document.getElementById('statMatches').textContent = kwMatches.length + ptMatches.length;
+  document.getElementById('statPatterns').textContent = ptMatches.length;
+  document.getElementById('statFSA').textContent = fsaState;
+  const fpRisk = score >= 60 ? 'Low' : score >= 25 ? 'Med' : 'Low';
+  document.getElementById('statFP').textContent = fpRisk;
+
+  // FSA diagram
+  const stateMap = {q0:'s0',q1:'s1',q2:'s2',q3:'s3',q4:'s4'};
+  const arrowMap  = {q1:'a01',q2:'a12',q3:'a23',q4:'a34'};
+  ['s0','s1','s2','s3','s4'].forEach(id => {
+    const el = document.getElementById(id);
+    el.className = 'fsa-state' + (id === 's4' ? ' accept' : '');
+  });
+  ['a01','a12','a23','a34'].forEach(id => document.getElementById(id).className = 'fsa-arrow');
+
+  const stateOrder = ['q0','q1','q2','q3','q4'];
+  const stateIdx = stateOrder.indexOf(fsaState);
+  for (let i = 0; i <= stateIdx; i++) {
+    const sId = stateMap[stateOrder[i]];
+    document.getElementById(sId).classList.add('active');
+    if (i > 0) document.getElementById(arrowMap[stateOrder[i]]).classList.add('active');
+  }
+
+  // Highlighted text
+  document.getElementById('highlightedText').innerHTML = highlightText(text, kwMatches, ptMatches);
+
+  // Match list
+  const mg = document.getElementById('matchGrid');
+  if (kwMatches.length + ptMatches.length === 0) {
+    mg.innerHTML = '<div class="empty-state">No matches found</div>';
+  } else {
+    const all = [
+      ...kwMatches.map(m => ({ label: m.severity, keyword: m.keyword, found: m.found, count: m.count })),
+      ...ptMatches.map(p => ({ label: p.severity, keyword: p.desc, found: p.matches.slice(0,2).join(', '), count: p.count }))
+    ];
+    all.sort((a,b) => {
+      const order = {critical:0,high:1,medium:2,low:3};
+      return (order[a.label]||4) - (order[b.label]||4);
+    });
+    mg.innerHTML = all.map(m => `
+      <div class="match-item">
+        <span class="match-tag tag-${m.label}">${m.label}</span>
+        <span class="match-keyword">${m.keyword}</span>
+        <span class="match-found">"${m.found}"</span>
+        <span class="match-count">×${m.count}</span>
+      </div>
+    `).join('');
+  }
+
+  // Pattern complexity list
+  const pl = document.getElementById('patternList');
+  pl.innerHTML = PATTERNS.map(p => {
+    const hit = ptMatches.find(m => m.desc === p.desc);
+    const complexity = p.regex.source.length > 40 ? 3 : p.regex.source.length > 20 ? 2 : 1;
+    return `
+      <div class="pattern-item" style="${hit ? 'border-color:'+severityColor(p.severity)+';opacity:1' : 'opacity:0.5'}">
+        <div style="flex:1">
+          <div class="pattern-regex">${p.regex.source.slice(0,55)}${p.regex.source.length>55?'…':''}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+            <div class="pattern-desc">${p.desc}</div>
+            <div class="pattern-complexity">${[1,2,3].map(i=>`<div class="dot ${i<=complexity?'on':'off'}"></div>`).join('')}</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+          <span class="match-tag tag-${p.severity}" style="font-size:9px">${p.severity}</span>
+          ${hit ? `<span style="font-size:10px;color:var(--safe)">HIT ×${hit.count}</span>` : `<span style="font-size:10px;color:var(--muted)">MISS</span>`}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // FP Analysis
+  const fpItems = fpAnalysis(text, score, kwMatches, ptMatches);
+  const fpMeter = document.getElementById('fpMeter');
+  fpMeter.innerHTML = `
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:1px">FALSE POSITIVE RISK FACTORS</div>
+    ${fpItems.map(item => `
+      <div class="fp-row">
+        <div class="fp-name">${item.name}</div>
+        <div class="fp-bar-wrap">
+          <div class="fp-bar-fill" style="width:${Math.round(item.risk*100)}%;background:${item.risk > 0.6 ? 'var(--warn)' : item.risk > 0.3 ? 'var(--accent3)' : 'var(--accent2)'}"></div>
+        </div>
+        <div class="fp-pct">${Math.round(item.risk*100)}%</div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px;padding-left:0">${item.desc}</div>
+    `).join('')}
+    <div style="margin-top:12px;padding:10px;background:var(--surface2);border-radius:4px;font-size:11px;color:var(--muted);border:1px solid var(--border)">
+      <strong style="color:var(--text)">FP Verdict:</strong> ${
+        score < 25 && kwMatches.filter(m=>m.severity==='critical').length===0
+          ? '<span style="color:var(--safe)">Low false-positive risk. Message appears clean.</span>'
+          : score < 60
+          ? '<span style="color:var(--warn)">Moderate risk — context-dependent. Consider whitelist.</span>'
+          : '<span style="color:var(--accent)">Strong spam signals. FP unlikely.</span>'
+      }
+    </div>
+  `;
+}
+
+function severityColor(s) {
+  return {critical:'#ff3c5f',high:'#ffab00',medium:'#a259ff',low:'#00e5ff'}[s]||'var(--border)';
+}
+
+function clearAll() {
+  document.getElementById('msgInput').value = '';
+  document.getElementById('verdictBox').className = 'verdict-box idle';
+  document.getElementById('verdictIcon').textContent = '🛡️';
+  document.getElementById('verdictText').textContent = 'Awaiting Input';
+  document.getElementById('verdictSub').textContent = 'Enter a message and click Analyze';
+  document.getElementById('scoreNum').textContent = '--';
+  document.getElementById('scoreNum').style.color = 'var(--muted)';
+  document.getElementById('scoreFill').style.width = '0%';
+  document.getElementById('matchGrid').innerHTML = '<div class="empty-state">No matches yet</div>';
+  document.getElementById('highlightedText').innerHTML = '<span style="color:var(--muted);font-size:12px">Analyzed text will appear here with matched patterns highlighted.</span>';
+  document.getElementById('fpMeter').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Analyze a message to see FP risk breakdown</div>';
+  ['s0','s1','s2','s3'].forEach(id => { document.getElementById(id).className='fsa-state'; });
+  document.getElementById('s4').className = 'fsa-state accept';
+  ['a01','a12','a23','a34'].forEach(id => document.getElementById(id).className='fsa-arrow');
+  ['statMatches','statPatterns'].forEach(id=>document.getElementById(id).textContent='0');
+  document.getElementById('statFSA').textContent='—';
+  document.getElementById('statFP').textContent='Low';
+  renderPatternList();
+}
+
+const SAMPLES = {
+  spam1: `CONGRATULATIONS!!! You have been selected as our LUCKY WINNER! Claim your FREE prize of $5,000 cash NOW! Click here: http://win-big-prizes.com/claim Act immediately — this offer expires in 24 hours! Call us at 555-123-4567. Limited time offer!`,
+  spam2: `Get V!agra and C1alis at 80% discount! No prescription needed! Buy now at www.cheapmeds-online.com — best pharma deals guaranteed. Risk-free! Earn extra income by referring friends!`,
+  spam3: `URGENT: Your account has been suspended. Please verify your login and password immediately to restore access. Click here to confirm your social security number and account details. Reply ASAP or your account will be permanently deleted.`,
+  legit1: `Hi Sarah, just following up on our meeting last Tuesday. I've attached the quarterly report for your review. Please let me know if you have any questions. Best regards, Michael`,
+  legit2: `Hi! We're offering a special discount of 20% on your next order as a thank you for being a loyal customer. Use code SAVE20 at checkout. If you did not request this email, you can unsubscribe at any time. Support team.`,
+};
+
+function loadSample(key) {
+  document.getElementById('msgInput').value = SAMPLES[key];
+}
+
+// Initialize pattern list on load
+function renderPatternList() {
+  const pl = document.getElementById('patternList');
+  pl.innerHTML = PATTERNS.map(p => {
+    const complexity = p.regex.source.length > 40 ? 3 : p.regex.source.length > 20 ? 2 : 1;
+    return `
+      <div class="pattern-item" style="opacity:0.6">
+        <div style="flex:1">
+          <div class="pattern-regex">${p.regex.source.slice(0,55)}${p.regex.source.length>55?'…':''}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+            <div class="pattern-desc">${p.desc}</div>
+            <div class="pattern-complexity">${[1,2,3].map(i=>`<div class="dot ${i<=complexity?'on':'off'}"></div>`).join('')}</div>
+          </div>
+        </div>
+        <span class="match-tag tag-${p.severity}" style="font-size:9px">${p.severity}</span>
+      </div>
+    `;
+  }).join('');
+}
+renderPatternList();
+
+// Ctrl+Enter to analyze
+document.getElementById('msgInput').addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'Enter') analyze();
+});
+</script>
+</body>
+</html>
