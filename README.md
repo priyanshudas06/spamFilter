@@ -4,7 +4,7 @@
  -> Regular Expressions (Regex) - for pattern matching
 to classify emails as HAM, Suspicious or SPAMS without any machine-learning dependencies**
 
-**Overview**
+--Overview-- 
 This project implements classical automata theory and pattern matching techniques from Natural Language Processing (NLP). Instead of relying on machine learning, the system uses:
 -> A weighted keyword dictionary (45 keywords across 6 categories)
 -> A Regex Pattern Engine with leet-speak normalization and flexible spacing
@@ -29,7 +29,7 @@ No external libraries required beyond python standard library
 git clone https://github.com/your-username/spam-filter.git
 cd spam-filter
 
-# Launch Jupyter Notebook
+Launch Jupyter Notebook
 jupyter notebook spam_filter.ipynb
 
 Requirements:
